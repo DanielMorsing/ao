@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"net"
 	"go/build"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -61,7 +61,7 @@ func main() {
 	win.Ctl("clean")
 	dr := dataReader{win}
 	evch := win.EventChan()
-	
+
 	l, err := net.Listen("unix", "@ao")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Cannot listen for clients: ", err)
@@ -93,7 +93,7 @@ func main() {
 				win.WriteEvent(e)
 				continue
 			}
-		case c := <- lch:
+		case c := <-lch:
 			b := bufio.NewReader(c)
 			str := changeWindow(b)
 			if str == "" {
@@ -149,17 +149,17 @@ func getScope(arg []string, winid string) []string {
 	if len(arg) == 0 {
 		arg = []string{"."}
 	}
-	scope := make([]string, len(arg))	
+	scope := make([]string, len(arg))
 	for i, s := range arg {
 		var scp string
-		scp = s 
+		scp = s
 		if s == "." {
 			fname, _, _ := getPositionInfo(winid)
 			scp = fname
 		}
 		scope[i] = scp
 	}
-	return scope	
+	return scope
 }
 
 func getPositionInfo(idstr string) (name string, b0 int, b1 int) {
