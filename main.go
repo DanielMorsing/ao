@@ -86,12 +86,30 @@ func main() {
 			if !ok {
 				os.Exit(0)
 			}
-			if e.C1 == 'M' && e.C2 == 'L' && e.Flag&4 == 0 {
-				// left click on one of the modes
+			if e.C1 == 'M' && e.C2 == 'X' {
+				// middle click on one of the modes, query the oracle
 				mode = string(e.Text)
-			} else {
+				win.Addr(",")
+				win.Write("data", []byte("querying oracle\n"))
+				fname, b0, b1 := getPositionInfo(winid)
+				posStr := fmt.Sprintf("%s:#%d,#%d", fname, b0, b1)
+				qp, err := oracle.ParseQueryPos(imp, posStr, false)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, "Cannot get position", err)
+					os.Exit(1)
+				}
+
+				res, err := oracl.Query(mode, qp)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, "Cannot query oracle: ", err)
+					writeModes(win, winid)
+					continue
+				}
+				writeModes(win, winid)
+				res.WriteTo(dr)
+				win.Ctl("clean")
+			} else if e.Flag&1 != 0 {
 				win.WriteEvent(e)
-				continue
 			}
 		case c := <-lch:
 			b := bufio.NewReader(c)
@@ -102,26 +120,8 @@ func main() {
 			winid = str
 			c.Close()
 			writeModes(win, winid)
-			continue
+			win.Ctl("clean")
 		}
-		win.Addr(",")
-		win.Write("data", []byte("querying oracle\n"))
-		fname, b0, b1 := getPositionInfo(winid)
-		posStr := fmt.Sprintf("%s:#%d,#%d", fname, b0, b1)
-		qp, err := oracle.ParseQueryPos(imp, posStr, false)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Cannot get position", err)
-			os.Exit(1)
-		}
-
-		res, err := oracl.Query(mode, qp)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Cannot query oracle: ", err)
-			os.Exit(1)
-		}
-		writeModes(win, winid)
-		res.WriteTo(dr)
-		win.Ctl("clean")
 	}
 }
 
