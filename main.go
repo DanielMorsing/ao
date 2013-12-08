@@ -56,7 +56,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Cannot create acme window: ", err)
 		os.Exit(1)
 	}
-	win.Name("ao")
+	win.Name("/ao/%s", scope[0])
 	writeModes(win, winid)
 	win.Ctl("clean")
 	dr := dataReader{win}
