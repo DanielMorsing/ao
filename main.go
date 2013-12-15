@@ -1,3 +1,13 @@
+/*
+ao is an acme program for querying the go oracle tool. When run, ao will start
+a new window with a menu of queries to be run on the invoking window. A query
+can be executed by using the middle button. ao will then use the selection
+as an argument to the oracle tool.
+
+If ao is run without arguments, the file of the invoking window will be used
+as scope. If an ao instance is already running, it will be switched to the
+new invoking window. An ao instance will exit once its window has been closed.
+*/
 package main
 
 import (
