@@ -21,10 +21,14 @@ callees
 callers 
 callgraph 
 callstack 
+peers
+pointsto
+
+definition
 describe 
 freevars 
+
 implements 
-peers
 referrers
 `
 
