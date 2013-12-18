@@ -44,13 +44,17 @@ referrers
 
 var imp = importer.New(&importer.Config{Build: &build.Default})
 
+func fatalln(x... interface{}) {
+	fmt.Fprintln(os.Stderr, x...)
+	os.Exit(1)
+}
+
 func main() {
 	flag.Parse()
 	// initial window
 	winid := os.Getenv("winid")
 	if winid == "" {
-		fmt.Fprintln(os.Stderr, "ao run outside acme window")
-		os.Exit(1)
+		fatalln("ao run outside acme window")
 	}
 
 	c, err := net.Dial("unix", "@ao")
@@ -62,13 +66,11 @@ func main() {
 	scope := getScope(flag.Args(), winid)
 	oracl, err := oracle.New(imp, scope, nil, false)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Cannot create oracle: ", err)
-		os.Exit(1)
+		fatalln("Cannot create oracle: ", err)
 	}
 	win, err := acme.New()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Cannot create acme window: ", err)
-		os.Exit(1)
+		fatalln("Cannot create acme window: ", err)
 	}
 	win.Name("/ao/%s", scope[0])
 	writeModes(win, winid)
@@ -78,16 +80,14 @@ func main() {
 
 	l, err := net.Listen("unix", "@ao")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Cannot listen for clients: ", err)
-		os.Exit(1)
+		fatalln("Cannot listen for clients: ", err)
 	}
 	lch := make(chan net.Conn)
 	go func() {
 		for {
 			c, err := l.Accept()
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "Cannot listen for clients: ", err)
-				os.Exit(1)
+				fatalln("Cannot listen for clients: ", err)
 			}
 			lch <- c
 		}
@@ -109,14 +109,14 @@ func main() {
 				posStr := fmt.Sprintf("%s:#%d,#%d", fname, b0, b1)
 				qp, err := oracle.ParseQueryPos(imp, posStr, false)
 				if err != nil {
-					fmt.Fprintln(os.Stderr, "Cannot get position", err)
-					os.Exit(1)
+					fatalln("Cannot get position: ", err)
 				}
 
 				res, err := oracl.Query(mode, qp)
 				if err != nil {
-					fmt.Fprintln(os.Stderr, "Cannot query oracle: ", err)
 					writeModes(win, winid)
+					fmt.Fprintln(dr, "Cannot query oracle: ", err)
+					win.Ctl("clean")
 					continue
 				}
 				writeModes(win, winid)
@@ -154,8 +154,7 @@ func sendChangeMessage(c net.Conn, winid string) {
 	// The window number to switch to in ASCII, followed by a newline
 	_, err := fmt.Fprintln(c, winid)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "cannot change window:", err)
-		os.Exit(1)
+		fatalln("cannot change window: ", err)
 	}
 	c.Close()
 }
@@ -183,14 +182,12 @@ func getPositionInfo(idstr string) (name string, b0 int, b1 int) {
 	}
 	win, err := acme.Open(int(id), nil)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Cannot open acme window: ", err)
-		os.Exit(1)
+		fatalln("Cannot open acme window: ", err)
 	}
 	defer win.CloseFiles()
 	name = getFilename(win)
 	if isDirty(win) {
-		fmt.Fprintln(os.Stderr, "window must be non-dirty to query. Save the file and try again")
-		os.Exit(1)
+		fatalln("window must be non-dirty to query. Save the file and try again")
 	}
 
 	// acme will initialize addr on first open, if you do addr=dot before opening the addr file
@@ -199,15 +196,13 @@ func getPositionInfo(idstr string) (name string, b0 int, b1 int) {
 
 	err = win.Ctl("addr=dot")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Cannot read acme address: ", err)
-		os.Exit(1)
+		fatalln("Cannot read acme address: ", err)
 	}
 
 	// find rune offset
 	q0, q1, err := win.ReadAddr()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Cannot read acme address: ", err)
-		os.Exit(1)
+		fatalln("Cannot read acme address: ", err)
 	}
 	b0, b1 = runeToByte(win, q0, q1)
 	return name, b0, b1
@@ -217,8 +212,7 @@ func runeToByte(win *acme.Win, q0, q1 int) (b0, b1 int) {
 	// convert rune offsets to byte offsets
 	err := win.Addr("0")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Cannot decode unicode: ", err)
-		os.Exit(1)
+		fatalln("Cannot decode unicode: ", err)
 	}
 	dr := dataReader{win}
 	br := bufio.NewReader(dr)
@@ -257,8 +251,7 @@ func getFilename(win *acme.Win) string {
 	// use current file scope
 	s, err := win.ReadAll("tag")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Cannot get current file name: ", err)
-		os.Exit(1)
+		fatalln("Cannot get current file name: ", err)
 	}
 	f := strings.Fields(string(s))
 	return f[0]
