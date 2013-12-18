@@ -44,7 +44,7 @@ referrers
 
 var imp = importer.New(&importer.Config{Build: &build.Default})
 
-func fatalln(x... interface{}) {
+func fatalln(x ...interface{}) {
 	fmt.Fprintln(os.Stderr, x...)
 	os.Exit(1)
 }
@@ -57,7 +57,7 @@ func main() {
 		fatalln("ao run outside acme window")
 	}
 
-	c, err := net.Dial("unix", "@ao")
+	c, err := net.Dial("unix", "/tmp/ao")
 	if err == nil {
 		// ao already running. Invocation is changewindows
 		sendChangeMessage(c, winid)
@@ -78,7 +78,8 @@ func main() {
 	dr := dataReader{win}
 	evch := win.EventChan()
 
-	l, err := net.Listen("unix", "@ao")
+	os.Remove("/tmp/ao")
+	l, err := net.Listen("unix", "/tmp/ao")
 	if err != nil {
 		fatalln("Cannot listen for clients: ", err)
 	}
