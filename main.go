@@ -14,7 +14,6 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"go/build"
 	"net"
 	"os"
 	"strconv"
@@ -22,7 +21,7 @@ import (
 
 	"code.google.com/p/goplan9/plan9/acme"
 
-	"code.google.com/p/go.tools/importer"
+	"code.google.com/p/go.tools/go/loader"
 	"code.google.com/p/go.tools/oracle"
 )
 
@@ -42,7 +41,7 @@ implements
 referrers
 `
 
-var imp = importer.New(&importer.Config{Build: &build.Default})
+var ld = loader.Config{SourceImports: true}
 
 func fatalln(x ...interface{}) {
 	fmt.Fprintln(os.Stderr, x...)
@@ -64,7 +63,15 @@ func main() {
 		return
 	}
 	scope := getScope(flag.Args(), winid)
-	oracl, err := oracle.New(imp, scope, nil, false)
+	_, err = ld.FromArgs(scope, false)
+	if err != nil {
+		fatalln(err)
+	}
+	prog, err := ld.Load()
+	if err != nil {
+		fatalln(err)
+	}
+	oracl, err := oracle.New(prog, nil, false)
 	if err != nil {
 		fatalln("Cannot create oracle: ", err)
 	}
@@ -108,7 +115,7 @@ func main() {
 				win.Write("data", []byte("querying oracle\n"))
 				fname, b0, b1 := getPositionInfo(winid)
 				posStr := fmt.Sprintf("%s:#%d,#%d", fname, b0, b1)
-				qp, err := oracle.ParseQueryPos(imp, posStr, false)
+				qp, err := oracle.ParseQueryPos(prog, posStr, false)
 				if err != nil {
 					fatalln("Cannot get position: ", err)
 				}
