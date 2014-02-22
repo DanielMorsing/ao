@@ -14,32 +14,17 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"strconv"
 	"strings"
 
+	"code.google.com/p/goplan9/plan9"
 	"code.google.com/p/goplan9/plan9/acme"
+	"code.google.com/p/goplan9/plan9/client"
 
 	"code.google.com/p/go.tools/go/loader"
 	"code.google.com/p/go.tools/oracle"
 )
-
-var modes = `Current file is: %s
-callees
-callers 
-callgraph 
-callstack 
-peers
-pointsto
-
-definition
-describe 
-freevars 
-
-implements 
-referrers
-`
 
 var ld = loader.Config{SourceImports: true}
 
@@ -56,14 +41,8 @@ func main() {
 		fatalln("ao run outside acme window")
 	}
 
-	c, err := net.Dial("unix", "/tmp/ao")
-	if err == nil {
-		// ao already running. Invocation is changewindows
-		sendChangeMessage(c, winid)
-		return
-	}
 	scope := getScope(flag.Args(), winid)
-	_, err = ld.FromArgs(scope, false)
+	_, err := ld.FromArgs(scope, false)
 	if err != nil {
 		fatalln(err)
 	}
@@ -83,89 +62,82 @@ func main() {
 	writeModes(win, winid)
 	win.Ctl("clean")
 	dr := dataReader{win}
-	evch := win.EventChan()
-
-	os.Remove("/tmp/ao")
-	l, err := net.Listen("unix", "/tmp/ao")
-	if err != nil {
-		fatalln("Cannot listen for clients: ", err)
-	}
-	lch := make(chan net.Conn)
-	go func() {
-		for {
-			c, err := l.Accept()
-			if err != nil {
-				fatalln("Cannot listen for clients: ", err)
-			}
-			lch <- c
-		}
-	}()
 
 	for {
 		var mode string
-		select {
-		case e, ok := <-evch:
-			if !ok {
-				os.Exit(0)
+		e, err := win.ReadEvent()
+		if err != nil {
+			os.Exit(0)
+		}
+		if e.C1 == 'M' && e.C2 == 'X' {
+			// middle click on one of the modes, query the oracle
+			mode = string(e.Text)
+			win.Addr(",")
+			win.Write("data", []byte("querying oracle\n"))
+			fname, b0, b1 := getPositionInfo(winid)
+			posStr := fmt.Sprintf("%s:#%d,#%d", fname, b0, b1)
+			qp, err := oracle.ParseQueryPos(prog, posStr, false)
+			if err != nil {
+				fatalln("Cannot get position: ", err)
 			}
-			if e.C1 == 'M' && e.C2 == 'X' {
-				// middle click on one of the modes, query the oracle
-				mode = string(e.Text)
-				win.Addr(",")
-				win.Write("data", []byte("querying oracle\n"))
-				fname, b0, b1 := getPositionInfo(winid)
-				posStr := fmt.Sprintf("%s:#%d,#%d", fname, b0, b1)
-				qp, err := oracle.ParseQueryPos(prog, posStr, false)
-				if err != nil {
-					fatalln("Cannot get position: ", err)
-				}
 
-				res, err := oracl.Query(mode, qp)
-				if err != nil {
-					writeModes(win, winid)
-					fmt.Fprintln(dr, "Cannot query oracle: ", err)
-					win.Ctl("clean")
-					continue
-				}
+			res, err := oracl.Query(mode, qp)
+			if err != nil {
 				writeModes(win, winid)
-				res.WriteTo(dr)
+				fmt.Fprintln(dr, "Cannot query oracle: ", err)
 				win.Ctl("clean")
-			} else if e.Flag&1 != 0 {
-				win.WriteEvent(e)
+				continue
 			}
-		case c := <-lch:
-			b := bufio.NewReader(c)
-			str := changeWindow(b)
-			if str == "" {
-				panic("bad connection")
-			}
-			winid = str
-			c.Close()
 			writeModes(win, winid)
+			res.WriteTo(dr)
 			win.Ctl("clean")
+		} else if e.Flag&1 != 0 {
+			win.WriteEvent(e)
+			if e.Flag&4 != 0 {
+				// loaded a file, change windows
+				str := winidFromFilename(string(e.Text))
+				if str == "" {
+					panic("could not get window from index")
+				}
+				winid = str
+				changeName(win, winid)
+				win.Ctl("clean")
+			}
 		}
 	}
 }
 
-func changeWindow(b *bufio.Reader) (winid string) {
-	idstr, err := b.ReadString('\n')
+var mntpoint *client.Fsys
+
+func winidFromFilename(file string) string {
+	// strip address from filename
+	i := strings.IndexRune(file, ':')
+	if i != -1 {
+		file = file[:i]
+	}
+	if mntpoint == nil {
+		var err error
+		mntpoint, err = client.MountService("acme")
+		if err != nil {
+			panic(err)
+		}
+	}
+	fs, err := mntpoint.Open("index", plan9.OREAD)
 	if err != nil {
 		panic(err)
 	}
-	winid = idstr[:len(idstr)-1]
-	return winid
-
-}
-
-func sendChangeMessage(c net.Conn, winid string) {
-	// message format is as follows
-	// The window number to switch to in ASCII, followed by a newline
-	_, err := fmt.Fprintln(c, winid)
-	if err != nil {
-		fatalln("cannot change window: ", err)
+	defer fs.Close()
+	sc := bufio.NewScanner(fs)
+	for sc.Scan() {
+		f := strings.Fields(sc.Text())
+		fi := f[5]
+		if fi == file {
+			return f[0]
+		}
 	}
-	c.Close()
+	return ""
 }
+
 func getScope(arg []string, winid string) []string {
 	if len(arg) == 0 {
 		arg = []string{"."}
@@ -265,11 +237,39 @@ func getFilename(win *acme.Win) string {
 	return f[0]
 }
 
+const modes = `
+callees
+callers 
+callgraph 
+callstack 
+peers
+pointsto
+
+definition
+describe 
+freevars 
+
+implements 
+referrers
+`
+
+var nameStart, nameEnd int
+
 func writeModes(win *acme.Win, idstr string) {
 	fname, _, _ := getPositionInfo(idstr)
 	win.Addr(",")
-	s := fmt.Sprintf(modes, fname)
-	win.Write("data", []byte(s))
+	win.Fprintf("data", "Current file is: ")
+	nameStart, _, _ = win.ReadAddr()
+	win.Fprintf("data", "%s", fname)
+	nameEnd, _, _ = win.ReadAddr()
+	win.Fprintf("data", "%s", modes)
+}
+
+func changeName(win *acme.Win, idstr string) {
+	fname, _, _ := getPositionInfo(idstr)
+	win.Fprintf("addr", "#%d,#%d", nameStart, nameEnd)
+	win.Fprintf("data", "%s", fname)
+	nameEnd, _, _ = win.ReadAddr()
 }
 
 type dataReader struct {
