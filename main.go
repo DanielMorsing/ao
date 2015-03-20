@@ -22,11 +22,9 @@ import (
 	"code.google.com/p/goplan9/plan9/acme"
 	"code.google.com/p/goplan9/plan9/client"
 
-	"code.google.com/p/go.tools/go/loader"
-	"code.google.com/p/go.tools/oracle"
+	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/oracle"
 )
-
-var ld = loader.Config{SourceImports: true}
 
 func fatalln(x ...interface{}) {
 	fmt.Fprintln(os.Stderr, x...)
@@ -42,6 +40,7 @@ func main() {
 	}
 
 	scope := getScope(flag.Args(), winid)
+	var ld loader.Config
 	_, err := ld.FromArgs(scope, false)
 	if err != nil {
 		fatalln(err)
@@ -244,6 +243,7 @@ callgraph
 callstack 
 peers
 pointsto
+whicherrs
 
 definition
 describe 
