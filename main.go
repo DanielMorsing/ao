@@ -14,15 +14,15 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"go/build"
 	"os"
 	"strconv"
 	"strings"
 
-	"code.google.com/p/goplan9/plan9"
-	"code.google.com/p/goplan9/plan9/acme"
-	"code.google.com/p/goplan9/plan9/client"
+	"9fans.net/go/acme"
+	"9fans.net/go/plan9"
+	"9fans.net/go/plan9/client"
 
-	"golang.org/x/tools/go/loader"
 	"golang.org/x/tools/oracle"
 )
 
@@ -40,19 +40,7 @@ func main() {
 	}
 
 	scope := getScope(flag.Args(), winid)
-	var ld loader.Config
-	_, err := ld.FromArgs(scope, false)
-	if err != nil {
-		fatalln(err)
-	}
-	prog, err := ld.Load()
-	if err != nil {
-		fatalln(err)
-	}
-	oracl, err := oracle.New(prog, nil, false)
-	if err != nil {
-		fatalln("Cannot create oracle: ", err)
-	}
+
 	win, err := acme.New()
 	if err != nil {
 		fatalln("Cannot create acme window: ", err)
@@ -75,12 +63,14 @@ func main() {
 			win.Write("data", []byte("querying oracle\n"))
 			fname, b0, b1 := getPositionInfo(winid)
 			posStr := fmt.Sprintf("%s:#%d,#%d", fname, b0, b1)
-			qp, err := oracle.ParseQueryPos(prog, posStr, false)
-			if err != nil {
-				fatalln("Cannot get position: ", err)
-			}
 
-			res, err := oracl.Query(mode, qp)
+			query := &oracle.Query{
+				Mode:  mode,
+				Pos:   posStr,
+				Scope: scope,
+				Build: &build.Default,
+			}
+			err := oracle.Run(query)
 			if err != nil {
 				writeModes(win, winid)
 				fmt.Fprintln(dr, "Cannot query oracle: ", err)
@@ -88,7 +78,7 @@ func main() {
 				continue
 			}
 			writeModes(win, winid)
-			res.WriteTo(dr)
+			query.WriteTo(dr)
 			win.Ctl("clean")
 		} else if e.Flag&1 != 0 {
 			win.WriteEvent(e)
