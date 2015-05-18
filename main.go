@@ -228,8 +228,7 @@ func getFilename(win *acme.Win) string {
 
 const modes = `
 callees
-callers 
-callgraph 
+callers
 callstack 
 peers
 pointsto
@@ -241,6 +240,8 @@ freevars
 
 implements 
 referrers
+
+what
 `
 
 var nameStart, nameEnd int
