@@ -14,16 +14,14 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"go/build"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 
 	"9fans.net/go/acme"
 	"9fans.net/go/plan9"
 	"9fans.net/go/plan9/client"
-
-	"golang.org/x/tools/oracle"
 )
 
 func fatalln(x ...interface{}) {
@@ -64,13 +62,7 @@ func main() {
 			fname, b0, b1 := getPositionInfo(winid)
 			posStr := fmt.Sprintf("%s:#%d,#%d", fname, b0, b1)
 
-			query := &oracle.Query{
-				Mode:  mode,
-				Pos:   posStr,
-				Scope: scope,
-				Build: &build.Default,
-			}
-			err := oracle.Run(query)
+			result, err := runOracle(mode, posStr, scope)
 			if err != nil {
 				writeModes(win, winid)
 				fmt.Fprintln(dr, "Cannot query oracle: ", err)
@@ -78,7 +70,7 @@ func main() {
 				continue
 			}
 			writeModes(win, winid)
-			query.WriteTo(dr)
+			dr.Write(result)
 			win.Ctl("clean")
 		} else if e.Flag&1 != 0 {
 			win.WriteEvent(e)
@@ -94,6 +86,16 @@ func main() {
 			}
 		}
 	}
+}
+
+func runOracle(mode string, pos string, scope []string) ([]byte, error) {
+	cmd := exec.Command("oracle", fmt.Sprintf("-pos=%s", pos), mode)
+	cmd.Args = append(cmd.Args, scope...)
+	b, err := cmd.CombinedOutput()
+	if e, _ := err.(*exec.ExitError); e != nil {
+		err = nil
+	}
+	return b, err
 }
 
 var mntpoint *client.Fsys
