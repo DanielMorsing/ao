@@ -12,8 +12,10 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strconv"
@@ -71,7 +73,7 @@ func main() {
 			fname, b0, b1 := getPositionInfo(winid)
 			posStr := fmt.Sprintf("%s:#%d,#%d", fname, b0, b1)
 
-			result, err := runGuru(mode, posStr, scope)
+			result, err := runGuru(mode, posStr, scope, fname, winid)
 			if err != nil {
 				writeModes(win, winid)
 				fmt.Fprintln(dr, "Cannot query guru: ", err)
@@ -97,12 +99,29 @@ func main() {
 	}
 }
 
-func runGuru(mode string, pos string, scope []string) ([]byte, error) {
+func runGuru(mode string, pos string, scope []string, fname string, idstr string) ([]byte, error) {
 	cmd := exec.Command("guru")
 	scopestring := strings.Join(scope, ",")
 	cmd.Args = append(cmd.Args, fmt.Sprintf("-scope=%s", scopestring))
+	cmd.Args = append(cmd.Args, "-modified")
 	cmd.Args = append(cmd.Args, mode)
 	cmd.Args = append(cmd.Args, pos)
+	id, err := strconv.ParseInt(idstr, 10, 0)
+	if err != nil {
+		panic("non-numerical winid" + err.Error() + idstr)
+	}
+	win, err := acme.Open(int(id), nil)
+	if err != nil {
+		fatalln("Cannot open acme window: ", err)
+	}
+	defer win.CloseFiles()
+	body, err := win.ReadAll("body")
+	if err != nil {
+		return nil, err
+	}
+	header := fmt.Sprintf("%s\n%d\n", fname, len(body))
+	cmd.Stdin = io.MultiReader(strings.NewReader(header), bytes.NewBuffer(body))
+
 	b, err := cmd.CombinedOutput()
 	if e, _ := err.(*exec.ExitError); e != nil {
 		err = nil
@@ -155,9 +174,6 @@ func getPositionInfo(idstr string) (name string, b0 int, b1 int) {
 	}
 	defer win.CloseFiles()
 	name = getFilename(win)
-	if isDirty(win) {
-		fatalln("window must be non-dirty to query. Save the file and try again")
-	}
 
 	// acme will initialize addr on first open, if you do addr=dot before opening the addr file
 	// you'll get zeroes back. Do a dummy read to get around this.
@@ -202,18 +218,6 @@ func runeToByte(win *acme.Win, q0, q1 int) (b0, b1 int) {
 		b1 += sz
 	}
 	return
-}
-
-func isDirty(win *acme.Win) bool {
-	ctl, err := win.ReadAll("ctl")
-	if err != nil {
-		panic("can't read info")
-	}
-	f := strings.Fields(string(ctl))
-	if len(f) == 0 {
-		panic("can't read info")
-	}
-	return f[4] != "0"
 }
 
 func getFilename(win *acme.Win) string {
