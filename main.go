@@ -55,6 +55,17 @@ func main() {
 			os.Exit(0)
 		}
 		if e.C1 == 'M' && e.C2 == 'X' {
+			if e.Flag & 8 != 0 {
+				// chorded argument, this means switch file to arg
+				// then query that window
+				str := winidFromFilename(string(e.Arg))
+				if str == "" {
+					panic("could not get window from index")
+				}
+				winid = str
+				changeName(win, winid)
+				win.Ctl("clean")
+			}
 			// middle click on one of the modes, query the oracle
 			mode = string(e.Text)
 			win.Addr(",")
