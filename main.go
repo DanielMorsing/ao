@@ -20,8 +20,6 @@ import (
 	"strings"
 
 	"9fans.net/go/acme"
-	"9fans.net/go/plan9"
-	"9fans.net/go/plan9/client"
 )
 
 func fatalln(x ...interface{}) {
@@ -55,7 +53,7 @@ func main() {
 			os.Exit(0)
 		}
 		if e.C1 == 'M' && e.C2 == 'X' {
-			if e.Flag & 8 != 0 {
+			if e.Flag&8 != 0 {
 				// chorded argument, this means switch file to arg
 				// then query that window
 				str := winidFromFilename(string(e.Arg))
@@ -109,37 +107,23 @@ func runOracle(mode string, pos string, scope []string) ([]byte, error) {
 	return b, err
 }
 
-var mntpoint *client.Fsys
-
 func winidFromFilename(file string) string {
 	// strip address from filename
 	i := strings.IndexRune(file, ':')
 	if i != -1 {
 		file = file[:i]
 	}
-	if mntpoint == nil {
-		var err error
-		mntpoint, err = client.MountService("acme")
-		if err != nil {
-			panic(err)
-		}
-	}
-	fs, err := mntpoint.Open("index", plan9.OREAD)
+	ws, err := acme.Windows()
 	if err != nil {
 		panic(err)
 	}
-	defer fs.Close()
-	sc := bufio.NewScanner(fs)
-	for sc.Scan() {
-		f := strings.Fields(sc.Text())
-		fi := f[5]
-		if fi == file {
-			return f[0]
+	for _, w := range ws {
+		if w.Name == file {
+			return fmt.Sprintf("%d", w.ID)
 		}
 	}
 	return ""
 }
-
 func getScope(arg []string, winid string) []string {
 	if len(arg) == 0 {
 		arg = []string{"."}
