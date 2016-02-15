@@ -1,8 +1,8 @@
 /*
-ao is an acme program for querying the go oracle tool. When run, ao will start
+ao is an acme program for querying the go guru tool. When run, ao will start
 a new window with a menu of queries to be run on the invoking window. A query
 can be executed by using the middle button. ao will then use the selection
-as an argument to the oracle tool.
+as an argument to the guru tool.
 
 If ao is run without arguments, the file of the invoking window will be used
 as scope. If an ao instance is already running, it will be switched to the
@@ -64,17 +64,17 @@ func main() {
 				changeName(win, winid)
 				win.Ctl("clean")
 			}
-			// middle click on one of the modes, query the oracle
+			// middle click on one of the modes, query the guru
 			mode = string(e.Text)
 			win.Addr(",")
-			win.Write("data", []byte("querying oracle\n"))
+			win.Write("data", []byte("querying guru\n"))
 			fname, b0, b1 := getPositionInfo(winid)
 			posStr := fmt.Sprintf("%s:#%d,#%d", fname, b0, b1)
 
-			result, err := runOracle(mode, posStr, scope)
+			result, err := runGuru(mode, posStr, scope)
 			if err != nil {
 				writeModes(win, winid)
-				fmt.Fprintln(dr, "Cannot query oracle: ", err)
+				fmt.Fprintln(dr, "Cannot query guru: ", err)
 				win.Ctl("clean")
 				continue
 			}
@@ -97,9 +97,12 @@ func main() {
 	}
 }
 
-func runOracle(mode string, pos string, scope []string) ([]byte, error) {
-	cmd := exec.Command("oracle", fmt.Sprintf("-pos=%s", pos), mode)
-	cmd.Args = append(cmd.Args, scope...)
+func runGuru(mode string, pos string, scope []string) ([]byte, error) {
+	cmd := exec.Command("guru")
+	scopestring := strings.Join(scope, ",")
+	cmd.Args = append(cmd.Args, fmt.Sprintf("-scope=%s", scopestring))
+	cmd.Args = append(cmd.Args, mode)
+	cmd.Args = append(cmd.Args, pos)
 	b, err := cmd.CombinedOutput()
 	if e, _ := err.(*exec.ExitError); e != nil {
 		err = nil
