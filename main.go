@@ -22,12 +22,15 @@ import (
 	"strings"
 
 	"9fans.net/go/acme"
+	"golang.org/x/tools/go/buildutil"
 )
 
 func fatalln(x ...interface{}) {
 	fmt.Fprintln(os.Stderr, x...)
 	os.Exit(1)
 }
+
+var tags = flag.String("tags", "", buildutil.TagsFlagDoc)
 
 func main() {
 	flag.Parse()
@@ -104,6 +107,9 @@ func runGuru(mode string, pos string, scope []string, fname string, idstr string
 	scopestring := strings.Join(scope, ",")
 	cmd.Args = append(cmd.Args, fmt.Sprintf("-scope=%s", scopestring))
 	cmd.Args = append(cmd.Args, "-modified")
+	if *tags != "" {
+		cmd.Args = append(cmd.Args, fmt.Sprintf("-tags=%s", *tags))
+	}
 	cmd.Args = append(cmd.Args, mode)
 	cmd.Args = append(cmd.Args, pos)
 	id, err := strconv.ParseInt(idstr, 10, 0)
